@@ -78,6 +78,9 @@ our @EXPORT_OK = qw(
 	uri_from_env
 
 	build_request
+
+	PSGI_MODIFIER1
+	PSGI_MODIFIER2
 );
 our %EXPORT_TAGS = (
 	'server' => [qw(extract_frame uri_from_env)],
