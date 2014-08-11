@@ -127,6 +127,24 @@ a role/mixin.
 =cut
 
 sub extract_frame {
+	my ($buffref) = @_;
+
+	my ($modifier1, $length, $modifier2) = unpack 'C1v1C1', $$buffref;
+	# no, still too short
+	return undef unless $length && length $$buffref >= $length + 4;
+
+	# then do the modifier-specific handling
+	die "Unsupported modifier1 $modifier1" unless $modifier1 == PSGI_MODIFIER1;
+
+	# hack bits off the buffer
+	substr $$buffref, 0, 4, '';
+
+	my %env = unpack '(v1/a*)*', substr $$buffref, 0, $length, '';
+	\%env
+}
+
+# For cases where non-PSGI modifiers are wanted. Takes about 2.5x as long.
+sub extract_frame_universal {
 	my $buffref = shift;
 	# too short
 	return undef unless length $$buffref >= 4;
