@@ -1,6 +1,8 @@
 Revision history for {{$dist->name}}
 
 {{$NEXT}}
+
+1.000     2014-08-11 18:04:41+01:00 Europe/London
 	Note that this version drops the constructor.
 	API should be stable now, any further changes will
 	be backward-compatible.
