@@ -217,30 +217,33 @@ sub build_request {
 	$uri = URI->new($uri) unless ref $uri;
 
 	my %env;
-	$env{REQUEST_METHOD} = uc $args{method};
+	$env{REQUEST_METHOD} = uc delete $args{method};
 	$env{UWSGI_SCHEME} = $uri->scheme;
 	$env{HTTP_HOST} = $uri->host;
 	$env{SERVER_PORT} = $uri->port // 80;
 	$env{PATH_INFO} = $uri->path;
 	$env{QUERY_STRING} = $uri->query if defined $uri->query;
-	@env{qw(REMOTE_ADDR REMOTE_PORT)} = split ':', $args{remote}, 2;
+	@env{qw(REMOTE_ADDR REMOTE_PORT)} = split ':', delete $args{remote}, 2 if $args{remote};
 
 	$args{headers} ||= {};
 	foreach my $k (keys %{$args{headers}}) {
 		(my $env_k = uc $k) =~ tr/-/_/;
 		$env{"HTTP_$env_k"} = $args{headers}{$k} // '';
 	}
+	delete $args{headers};
 
+	my @modifier = delete @args{qw(modifier1 modifier2)};
 	my $data = '';
+	%env = (%args, %env);
 	foreach my $k (sort keys %env) {
 		die "Undef value found for $k" unless defined $env{$k};
 		$data .= pack 'v1/av1/a', map { Encode::encode('utf8', $_) } $k, $env{$k};
 	}
 
 	return pack('C1v1C1',
-		$args{modifier1} // PSGI_MODIFIER1,
+		$modifier[0] // PSGI_MODIFIER1,
 		length($data),
-		$args{modifier2} // PSGI_MODIFIER2,
+		$modifier[1] // PSGI_MODIFIER2,
 	) . $data;
 }
 
