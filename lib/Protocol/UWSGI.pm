@@ -44,7 +44,7 @@ data if that method returns something other than undef:
 
 =cut
 
-use Encode;
+use Encode ();
 use URI;
 
 use constant {
