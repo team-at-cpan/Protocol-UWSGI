@@ -64,14 +64,6 @@ Just want to decode captured traffic? L</extract_frame> again.
 
 =cut
 
-=head2 new
-
-Instantiate. Takes no parameters, returns an instance.
-
-=cut
-
-sub new { my $class = shift; bless { @_ }, $class }
-
 =head2 extract_frame
 
 Attempts to extract a single UWSGI packet from the given buffer (which
@@ -90,6 +82,11 @@ the buffer is guaranteed not to be modified.
 
 This may be called as a class method or an instance method.
 The instance state will remain unchanged after calling this method.
+
+Note that there is no constructor provided in this
+class - if you want to call this as an instance method,
+you'll need to bless manually or be applying this as
+a role/mixin.
 
 =cut
 
