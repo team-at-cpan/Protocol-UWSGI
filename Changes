@@ -5,9 +5,8 @@ Revision history for {{$dist->name}}
 	If you're looking for a stable API, wait for 1.000.
 
 	API CHANGES:
-	* Removed constructor entirely. This module
-	is more useful as a mixin (or role), since it
-	does not retain any state.
+	* Removed constructor entirely.
+	* This is now a standalone module which exports functions.
 
 0.002     2014-08-06 15:40:28+01:00 Europe/London
 	Note that this version changes the return value

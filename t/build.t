@@ -2,13 +2,13 @@ use strict;
 use warnings;
 
 use Test::More;
-use Protocol::UWSGI;
+use Protocol::UWSGI qw(:all);
 use Test::HexString;
 
 plan tests => 24;
 
 { # try a simple request first as a sanity check
-	is_hexstr(Protocol::UWSGI->build_request(
+	is_hexstr(build_request(
 		uri => 'http://localhost/index.html',
 		method => 'GET',
 		remote => '1.2.3.4:2000',
@@ -41,12 +41,12 @@ my @cases = ({
 	}
 });
 for my $case (@cases) {
-	ok(my $pkt = Protocol::UWSGI->build_request(%$case), 'build packet');
-	ok(my $data = Protocol::UWSGI->extract_frame(\$pkt), 'extract packet data again');
+	ok(my $pkt = build_request(%$case), 'build packet');
+	ok(my $data = extract_frame(\$pkt), 'extract packet data again');
 	is(length($pkt), 0, 'packet data is now empty');
 
 	# Drop common ports
-	my $uri = Protocol::UWSGI->uri_from_env($data);
+	my $uri = uri_from_env($data);
 	$uri->port(undef) if $uri->scheme eq 'http' && $uri->port == 80;
 	$uri->port(undef) if $uri->scheme eq 'https' && $uri->port == 443;
 	is($uri, $case->{uri}, "URI matches");

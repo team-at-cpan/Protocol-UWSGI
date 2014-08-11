@@ -3,7 +3,9 @@ package Protocol::UWSGI;
 use strict;
 use warnings;
 
-our $VERSION = '0.003';
+use parent qw(Exporter);
+
+our $VERSION = '1.000';
 
 =head1 NAME
 
@@ -27,20 +29,39 @@ all. Try L<Net::Async::UWSGI> for an implementation that actually does
 something useful.
 
 Typically you'd create a UNIX socket and listen for requests, passing
-any data to the L</extract_frame> method and handling the resulting
-data if that method returns something other than undef:
+any data to the L</extract_frame> function and handling the resulting
+data if that function returns something other than undef:
 
  # Detect read - first packet is usually the UWSGI header, everything
  # after that would be the HTTP request body if there is one:
  sub on_read {
    my ($self, $buffref) = @_;
-   while(my $pkt = $uwsgi->extract_frame($buffref)) {
+   while(my $pkt = extract_frame($buffref)) {
      $self->handle_uwsgi($pkt);
    }
  }
 
  # and probably an EOF handler to detect client hangup
  # sub on_eof { ... }
+
+=head1 IMPLEMENTATION - Server
+
+A server implementation typically accepts requests from a reverse
+proxy, such as nginx, and returns HTTP responses.
+
+Import the :server tag to get L</uri_from_env>, L</extract_frame>
+and in future maybe L</psgi_from_env> functions:
+
+ use Protocol::UWSGI qw(:server);
+
+=head1 IMPLEMENTATION - Client
+
+A client implementation typically accepts HTTP requests and converts
+them to UWSGI for passing to a UWSGI-capable application.
+
+Import the :client tag to get L</build_request>:
+
+ use Protocol::UWSGI qw(:client);
 
 =cut
 
@@ -52,7 +73,19 @@ use constant {
 	PSGI_MODIFIER2 => 0,
 };
 
-=head1 METHODS
+our @EXPORT_OK = qw(
+	extract_frame
+	uri_from_env
+
+	build_request
+);
+our %EXPORT_TAGS = (
+	'server' => [qw(extract_frame uri_from_env)],
+	'client' => [qw(build_request)],
+	'all' => \@EXPORT_OK
+);
+
+=head1 FUNCTIONS
 
 If you're handling incoming UWSGI requests, you'll need to instantiate
 via L</new> then decode the request using L</extract_frame>.
@@ -91,7 +124,6 @@ a role/mixin.
 =cut
 
 sub extract_frame {
-	my $self = shift;
 	my $buffref = shift;
 	# too short
 	return undef unless length $$buffref >= 4;
@@ -104,7 +136,7 @@ sub extract_frame {
 	substr $$buffref, 0, 4, '';
 
 	# then do the modifier-specific handling
-	return $self->extract_modifier(
+	return extract_modifier(
 		modifier1 => $modifier1,
 		modifier2 => $modifier2,
 		length    => $length,
@@ -121,7 +153,6 @@ If zero, this means we should be able to extract a valid frame.
 =cut
 
 sub bytes_required {
-	my $self = shift;
 	my $buffref = shift;
 	return 4 - length($$buffref) unless length $$buffref >= 4;
 
@@ -158,7 +189,6 @@ Returns a scalar containing packet data or raises an exception on failure.
 =cut
 
 sub build_request {
-	my $self = shift;
 	my %args = @_;
 
 #	my $type = delete $args{type} or die 'no type provided';
@@ -200,7 +230,6 @@ Used internally to extract and handle the modifier-specific data.
 =cut
 
 sub extract_modifier {
-	my $self = shift;
 	my %args = @_;
 
 	die "Unsupported modifier1 $args{modifier1}" unless $args{modifier1} == PSGI_MODIFIER1;
@@ -225,7 +254,7 @@ Returns a L<URI> object parsed from a request ("environment").
 =cut
 
 sub uri_from_env {
-	my ($self, $env) = @_;
+	my ($env) = @_;
 	my $uri = $env->{UWSGI_SCHEME} . '://' . $env->{HTTP_HOST} . ':' . $env->{SERVER_PORT} . $env->{PATH_INFO};
 	$uri .= '?' . $env->{QUERY_STRING} if length($env->{QUERY_STRING} // '');
 	return URI->new($uri);
