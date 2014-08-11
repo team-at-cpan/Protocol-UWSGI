@@ -3,7 +3,7 @@ package Protocol::UWSGI;
 use strict;
 use warnings;
 
-our $VERSION = '0.001';
+our $VERSION = '0.002';
 
 =head1 NAME
 
@@ -11,13 +11,7 @@ Protocol::UWSGI - handle the UWSGI wire protocol
 
 =head1 SYNOPSIS
 
- use Protocol::UWSGI;
- my $uwsgi = Protocol::UWSGI->new;
- $uwsgi->build_request(
-   uri    => 'http://localhost',
-   method => 'GET',
-   remote => '1.2.3.4:1234',
- );
+# EXAMPLE: examples/synopsis.pl
 
 =head1 DESCRIPTION
 
@@ -29,7 +23,8 @@ may be extended later if there's any demand for the other packet types.
 This is unlikely to be useful in an application - it's intended to provide
 support for dealing with the protocol in an existing framework: it deals
 with the abstract protocol only, and has no network transport handling at
-all.
+all. Try L<Net::Async::UWSGI> for an implementation that actually does
+something useful.
 
 Typically you'd create a UNIX socket and listen for requests, passing
 any data to the L</extract_frame> method and handling the resulting
@@ -59,6 +54,14 @@ use constant {
 
 =head1 METHODS
 
+If you're handling incoming UWSGI requests, you'll need to instantiate
+via L</new> then decode the request using L</extract_frame>.
+
+If you're making UWSGI requests against an external UWSGI server,
+that'll be L</build_request>.
+
+Just want to decode captured traffic? L</extract_frame> again.
+
 =cut
 
 =head2 new
@@ -72,7 +75,11 @@ sub new { my $class = shift; bless { @_ }, $class }
 =head2 extract_frame
 
 Attempts to extract a single UWSGI packet from the given buffer (which
-should be passed as a scalar ref, e.g. my $buffref = \"...").
+should be passed as a scalar ref, e.g.
+
+ my $buffref = \"...";
+ my $req = Protocol::UWSGI->extract_frame($buffref)
+   or die "could not find UWSGI frame";
 
 If we had enough data for a packet, that packet will be removed from
 the buffer and returned. There may be additional packet data that
@@ -81,18 +88,25 @@ can be extracted, or non-UWSGI data such as HTTP request body.
 If this returns undef, there's not enough data to process - in this case,
 the buffer is guaranteed not to be modified.
 
+This may be called as a class method or an instance method.
+The instance state will remain unchanged after calling this method.
+
 =cut
 
 sub extract_frame {
 	my $self = shift;
 	my $buffref = shift;
+	# too short
 	return undef unless length $$buffref >= 4;
 
 	my ($modifier1, $length, $modifier2) = unpack 'C1v1C1', $$buffref;
+	# no, still too short
 	return undef unless length $$buffref >= $length + 4;
 
+	# hack bits off the buffer
 	substr $$buffref, 0, 4, '';
 
+	# then do the modifier-specific handling
 	return $self->extract_modifier(
 		modifier1 => $modifier1,
 		modifier2 => $modifier2,
@@ -171,7 +185,7 @@ sub build_request {
 
 	my $data = '';
 	foreach my $k (sort keys %env) {
-		warn "Undef for $k" unless defined $env{$k};
+		die "Undef value found for $k" unless defined $env{$k};
 		$data .= pack 'v1/av1/a', map { Encode::encode('utf8', $_) } $k, $env{$k};
 	}
 
@@ -192,7 +206,7 @@ sub extract_modifier {
 	my $self = shift;
 	my %args = @_;
 
-	die "Invalid modifier1 $args{modifier1}" unless $args{modifier1} == PSGI_MODIFIER1;
+	die "Unsupported modifier1 $args{modifier1}" unless $args{modifier1} == PSGI_MODIFIER1;
 
 	my $len = delete $args{length} or die "no length found";
 	my $buffer = delete $args{buffer} or die "no buffer found";
@@ -204,13 +218,20 @@ sub extract_modifier {
 		substr $$buffer, 0, $sublen, '';
 		$len -= $sublen;
 	}
+	return \%env;
+}
 
-	my $url = $env{UWSGI_SCHEME} . '://' . $env{HTTP_HOST} . ':' . $env{SERVER_PORT} . $env{PATH_INFO};
-	$url .= '?' . $env{QUERY_STRING} if length($env{QUERY_STRING} // '');
-	return {
-		uri => URI->new($url),
-		env => \%env,
-	};
+=head2 uri_from_env
+
+Returns a L<URI> object parsed from a request ("environment").
+
+=cut
+
+sub uri_from_env {
+	my ($self, $env) = @_;
+	my $uri = $env->{UWSGI_SCHEME} . '://' . $env->{HTTP_HOST} . ':' . $env->{SERVER_PORT} . $env->{PATH_INFO};
+	$uri .= '?' . $env->{QUERY_STRING} if length($env->{QUERY_STRING} // '');
+	return URI->new($uri);
 }
 
 1;
@@ -219,9 +240,9 @@ __END__
 
 =head1 AUTHOR
 
-Tom Molesworth <cpan@entitymodel.com>
+Tom Molesworth <cpan@perlsite.co.uk>
 
 =head1 LICENSE
 
-Copyright Tom Molesworth 2013. Licensed under the same terms as Perl itself.
+Copyright Tom Molesworth 2013-2014. Licensed under the same terms as Perl itself.
 

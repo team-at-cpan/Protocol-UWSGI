@@ -43,19 +43,19 @@ my @cases = ({
 	}
 });
 for my $case (@cases) {
-	my $uri = URI->new('' . $case->{uri});
 	ok(my $pkt = $uwsgi->build_request(%$case), 'build packet');
 	ok(my $data = $uwsgi->extract_frame(\$pkt), 'extract packet data again');
 	is(length($pkt), 0, 'packet data is now empty');
 
 	# Drop common ports
-	$data->{uri}->port(undef) if $data->{uri}->scheme eq 'http' && $data->{uri}->port == 80;
-	$data->{uri}->port(undef) if $data->{uri}->scheme eq 'https' && $data->{uri}->port == 443;
-	is($data->{$_}, $case->{$_}, "$_ matches") for qw(uri);
-	is($data->{env}{HTTP_HOST}, $uri->host, 'host matches');
+	my $uri = $uwsgi->uri_from_env($data);
+	$uri->port(undef) if $uri->scheme eq 'http' && $uri->port == 80;
+	$uri->port(undef) if $uri->scheme eq 'https' && $uri->port == 443;
+	is($uri, $case->{uri}, "URI matches");
+	is($data->{HTTP_HOST}, $uri->host, 'host matches');
 	foreach my $k (keys %{$case->{headers}}) {
 		(my $env_k = uc $k) =~ tr/-/_/;
-		is($data->{env}{"HTTP_$env_k"}, $case->{headers}{$k}, "header $k matches");
+		is($data->{"HTTP_$env_k"}, $case->{headers}{$k}, "header $k matches");
 	}
 }
 
